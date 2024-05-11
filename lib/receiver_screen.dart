@@ -1,3 +1,4 @@
+import 'package:client/signaling_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -8,16 +9,21 @@ class ReceiverScreen extends StatefulWidget {
 
 class _ReceiverScreenState extends State<ReceiverScreen> {
   final _remoteRenderer = RTCVideoRenderer();
+  SignalingClient? _signalingClient;
 
   @override
   void initState() {
     super.initState();
+    _signalingClient = SignalingClient("ws://localhost:6789");
+    _signalingClient?.connect();
+    _signalingClient?.getOfferListFromSignalingServer();
     initRenderer();
   }
 
   @override
   void dispose() {
     _remoteRenderer.dispose();
+    _signalingClient?.disconnect();
     super.dispose();
   }
 

@@ -81,7 +81,6 @@ class _SenderScreenState extends State<SenderScreen> {
   void _createOffer() async {
     RTCSessionDescription description = await _peerConnection!.createOffer({'offerToReceiveVideo': 0, 'offerToReceiveAudio': 0});
     await _peerConnection!.setLocalDescription(description);
-    print(description);
 
     // Send the offer to the remote peer through the signaling server
     _sendOfferToSignalingServer(description);
@@ -89,12 +88,12 @@ class _SenderScreenState extends State<SenderScreen> {
 
   void _sendOfferToSignalingServer(RTCSessionDescription description) {
     _signalingClient?.sendOfferToSignalingServer(description);
-    print('Send offer to signaling server: ${description.sdp}');
+    //print('Send offer to signaling server: ${description.sdp}');
   }
 
   void _sendCandidateToSignalingServer(RTCIceCandidate candidate) {
     // Implement your signaling client here.
-    print('Send candidate to signaling server: ${candidate.candidate}');
+    //print('Send candidate to signaling server: ${candidate.candidate}');
   }
 
   @override
