@@ -12,12 +12,18 @@ class _SenderScreenState extends State<SenderScreen> {
   MediaStream? _localStream;
   RTCPeerConnection? _peerConnection;
   SignalingClient? _signalingClient;
+  List _candi = [];
+
+  void sendAllCandi(String target_id){
+    for(RTCIceCandidate i in _candi)
+      _signalingClient?.sendCandidateToSignalingServer(i, target_id);
+  }
 
   @override
   void initState() {
     super.initState();
     initRenderer();
-    _signalingClient = SignalingClient("ws://localhost:6789");
+    _signalingClient = SignalingClient("ws://localhost:6789", sendAllCandi);
     _signalingClient?.connect();
     _setupConnection();
   }
@@ -73,7 +79,7 @@ class _SenderScreenState extends State<SenderScreen> {
 
     RTCPeerConnection pc = await createPeerConnection(configuration, offerSdpConstraints);
     pc.onIceCandidate = (candidate) {
-      _sendCandidateToSignalingServer(candidate);
+      _candi.add(candidate);
     };
     return pc;
   }
@@ -89,11 +95,6 @@ class _SenderScreenState extends State<SenderScreen> {
   void _sendOfferToSignalingServer(RTCSessionDescription description) {
     _signalingClient?.sendOfferToSignalingServer(description);
     //print('Send offer to signaling server: ${description.sdp}');
-  }
-
-  void _sendCandidateToSignalingServer(RTCIceCandidate candidate) {
-    // Implement your signaling client here.
-    //print('Send candidate to signaling server: ${candidate.candidate}');
   }
 
   @override

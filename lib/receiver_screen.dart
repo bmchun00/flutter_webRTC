@@ -1,3 +1,4 @@
+import 'package:client/receiver_detail.dart';
 import 'package:client/signaling_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -9,21 +10,27 @@ class ReceiverScreen extends StatefulWidget {
 
 class _ReceiverScreenState extends State<ReceiverScreen> {
   final _remoteRenderer = RTCVideoRenderer();
-  SignalingClient? _signalingClient;
+  late WebSocketReceiver webSocketManager;
+  List<dynamic> _offer_list_id = [];
+  List<dynamic> _offer_list_sdp = [];
 
   @override
   void initState() {
     super.initState();
-    _signalingClient = SignalingClient("ws://localhost:6789");
-    _signalingClient?.connect();
-    _signalingClient?.getOfferListFromSignalingServer();
+    webSocketManager = WebSocketReceiver(
+      onDataReceived: (idList, sdpList) {
+        setState(() {
+          _offer_list_id = idList;
+          _offer_list_sdp = sdpList;
+        });
+      },
+    );
     initRenderer();
   }
 
   @override
   void dispose() {
     _remoteRenderer.dispose();
-    _signalingClient?.disconnect();
     super.dispose();
   }
 
@@ -37,9 +44,33 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
       appBar: AppBar(
         title: Text('Receiver Stream'),
       ),
-      body: RTCVideoView(_remoteRenderer),
+      body: ListView.builder(
+        itemCount: _offer_list_id.length,
+        itemBuilder: (context, index) {
+          return Card(
+            elevation: 2,
+            margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            child: ListTile(
+              title: Text(_offer_list_id[index], style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text("Subtitle ${index + 1}"),
+              trailing: Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                // 클릭 시 수행할 액션
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ReceiverDetail(_offer_list_id[index], _offer_list_sdp[index]),
+                ));
+              },
+            ),
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => print("Implement receive offer logic here"),
+        onPressed: (){
+          _offer_list_id = [];
+          _offer_list_sdp = [];
+          webSocketManager.getOfferListFromSignalingServer();
+        },
         child: Icon(Icons.call_received),
       ),
     );

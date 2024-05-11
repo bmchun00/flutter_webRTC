@@ -18,28 +18,33 @@ async def server(websocket, path):
 
             # SDP 또는 ICE 후보 정보 교환 처리
             if data["type"] == "offer":
-                print("offer 들어옴 : ", data)
+                print("offer 들어옴 : ")
                 offers[session_key] = data
                 # 현재 offer를 저장
                 
             elif data["type"] == "answer":
                 # 수신한 answer를 해당 offer를 보낸 클라이언트에게 전달
-                streamer = data["offer_id"]
+                streamer = data["target_id"]
                 if streamer in connected:
                     if connected[streamer] != websocket:
                         await connected[streamer].send(json.dumps(data))
                 
             elif data["type"] == "candidate":
                 # ICE 후보 정보 교환
-                id = data["ice_id"]
+                print("캔디 들어옴 : ")
+                #id = data["target_id"]
                 if id in connected:
                     await connected[id].send(json.dumps(data))
                         
             elif data["type"] == "streamers":
                 # 현재 offer상태의 클라이언트 정보 제공
+                idList = []
+                sdpList = []
                 for i in offers:
-                    clients = {'type':'streamers', 'id':i, 'sdp':offers[i]['sdp']}
-                    await websocket.send(json.dumps(clients))
+                    idList.append(i)
+                    sdpList.append(offers[i]['sdp'])
+                clients = {'type':'streamers', 'id':idList, 'sdp':sdpList}
+                await websocket.send(json.dumps(clients))
 
                 print('offers 보냄')
 
