@@ -27,7 +27,7 @@ class _ReceiverDetailState extends State<ReceiverDetail> {
   void initState() {
     super.initState();
     initRenderers();
-    _signalingClient = SignalingClient("ws://localhost:6789", null);
+    _signalingClient = SignalingClient("ws://localhost:6789", null, _addCandi, null);
     _signalingClient?.connect();
     _createPeerConnection();
   }
@@ -47,6 +47,10 @@ class _ReceiverDetailState extends State<ReceiverDetail> {
     await _remoteRenderer.initialize();
   }
 
+  Future<void> _addCandi(candidate) async{
+    await _peerConnection.addCandidate(candidate);
+  }
+
   Future<void> _createPeerConnection() async {
     Map<String, dynamic> configuration = {
       'iceServers': [
@@ -56,20 +60,37 @@ class _ReceiverDetailState extends State<ReceiverDetail> {
 
     _peerConnection = await createPeerConnection(configuration);
 
-    _peerConnection.onIceCandidate = (candidate) {
-      _signalingClient?.sendCandidateToSignalingServer(candidate, _sender_id);
-    };
 
     _peerConnection.onAddStream = (stream) {
       _remoteRenderer.srcObject = stream;
     };
 
     _peerConnection.onIceCandidate = (candidate) {
+      _signalingClient?.sendCandidateToSignalingServer(candidate, _sender_id);
       // Receive and add candidate
     };
     await initOffer();
     // Answer 생성 및 시그널링 서버로 전송 로직 추가 필요
     await sendAnswer();
+
+    _peerConnection.onIceConnectionState = (RTCIceConnectionState state) {
+      print("R) ICE Connection State Changed: $state");
+      if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
+        print("R) ICE Connection is successfully established.");
+
+      }
+    };
+
+    _peerConnection.onTrack = (RTCTrackEvent event) {
+      if (event.streams.isNotEmpty && event.track.kind == 'video') {
+        // 이벤트에서 미디어 스트림을 받고, 해당 스트림을 재생할 수 있습니다.
+        print("Received media stream");
+        setState(() {
+          _remoteRenderer.srcObject = event.streams.first;
+        });
+      }
+    };
+
   }
 
   @override

@@ -10,9 +10,10 @@ class SenderScreen extends StatefulWidget {
 class _SenderScreenState extends State<SenderScreen> {
   RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   MediaStream? _localStream;
-  RTCPeerConnection? _peerConnection;
+  late RTCPeerConnection _peerConnection;
   SignalingClient? _signalingClient;
   List _candi = [];
+  List pendingCandidates = [];
 
   void sendAllCandi(String target_id){
     for(RTCIceCandidate i in _candi)
@@ -23,16 +24,21 @@ class _SenderScreenState extends State<SenderScreen> {
   void initState() {
     super.initState();
     initRenderer();
-    _signalingClient = SignalingClient("ws://localhost:6789", sendAllCandi);
+    _signalingClient = SignalingClient("ws://localhost:6789", sendAllCandi, _addCandi, _setSDP);
     _signalingClient?.connect();
     _setupConnection();
+  }
+  void _setSDP(sdp) async {
+    RTCSessionDescription description = RTCSessionDescription(sdp, 'answer');
+    await _peerConnection.setRemoteDescription(description);
+    processPendingCandidates();
   }
 
   @override
   void dispose() {
     _localRenderer.dispose();
     _localStream?.dispose();
-    _peerConnection?.close();
+    _peerConnection.close();
     _signalingClient?.disconnect();
     super.dispose();
   }
@@ -46,11 +52,22 @@ class _SenderScreenState extends State<SenderScreen> {
     _localRenderer.srcObject = _localStream;
 
     _peerConnection = await _createPeerConnection();
-    _localStream!.getTracks().forEach((track) {
-      _peerConnection!.addTrack(track, _localStream!);
-    });
+
+    _peerConnection.addStream(_localStream!);
+
+    _peerConnection.onIceConnectionState = (RTCIceConnectionState state) {
+      print("S) ICE Connection State Changed: $state");
+      if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
+        print("S) ICE Connection is successfully established.");
+
+      }
+    };
 
     _createOffer();
+  }
+
+  void _addCandi(candidate) {
+    pendingCandidates.add(candidate);
   }
 
   Future<MediaStream> _getUserMedia() async {
@@ -77,16 +94,16 @@ class _SenderScreenState extends State<SenderScreen> {
       'optional': [],
     };
 
-    RTCPeerConnection pc = await createPeerConnection(configuration, offerSdpConstraints);
-    pc.onIceCandidate = (candidate) {
+    RTCPeerConnection _peerConnection = await createPeerConnection(configuration, offerSdpConstraints);
+    _peerConnection.onIceCandidate = (candidate) {
       _candi.add(candidate);
     };
-    return pc;
+    return _peerConnection;
   }
 
   void _createOffer() async {
-    RTCSessionDescription description = await _peerConnection!.createOffer({'offerToReceiveVideo': 0, 'offerToReceiveAudio': 0});
-    await _peerConnection!.setLocalDescription(description);
+    RTCSessionDescription description = await _peerConnection.createOffer({'offerToReceiveVideo': 0, 'offerToReceiveAudio': 0});
+    await _peerConnection.setLocalDescription(description);
 
     // Send the offer to the remote peer through the signaling server
     _sendOfferToSignalingServer(description);
@@ -95,6 +112,13 @@ class _SenderScreenState extends State<SenderScreen> {
   void _sendOfferToSignalingServer(RTCSessionDescription description) {
     _signalingClient?.sendOfferToSignalingServer(description);
     //print('Send offer to signaling server: ${description.sdp}');
+  }
+
+  void processPendingCandidates() async {
+    for (RTCIceCandidate candidate in pendingCandidates) {
+      await _peerConnection.addCandidate(candidate);
+    }
+    pendingCandidates.clear(); // 처리 후 목록 비우기
   }
 
   @override

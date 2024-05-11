@@ -45,15 +45,17 @@ class SignalingClient {
   String _url;
   String?_id;
   Function? _sendCandi;
+  Function? _setSDP; // sender의 경우 필요
+  late Function _addCandi;
 
-  SignalingClient(this._url, this._sendCandi);
+  SignalingClient(this._url, this._sendCandi, this._addCandi, this._setSDP);
 
   void connect() {
     _channel = WebSocketChannel.connect(Uri.parse(_url));
     _channel!.stream.listen(_onMessageReceived);
   }
 
-  Map<String, String>? _onMessageReceived(dynamic message) { //세션 키와 answer, ICE를 받을 수 있음, offer도
+  Future<Map<String, String>?> _onMessageReceived(dynamic message) async { //세션 키와 answer, ICE를 받을 수 있음, offer도
     try{
       Map<String, dynamic> msg = jsonDecode(message);
       if(msg['type'] == 'sessionId') _id = msg['sessionId'];
@@ -62,7 +64,15 @@ class SignalingClient {
           _sendCandi!(msg['my_id']);
         }
       }
-      else if(msg['type'] == 'candidate') print('candidate 받음');
+      else if(msg['type'] == 'candidate'){
+        RTCIceCandidate candidate = RTCIceCandidate(
+            msg['candidate']['candidate'],
+            msg['candidate']['sdpMid'],
+            msg['candidate']['sdpMLineIndex']
+        );
+        await _addCandi(candidate);
+        print("candidate added");
+      };
     }
     catch(e){
       print(e);

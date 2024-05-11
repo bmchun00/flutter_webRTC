@@ -32,7 +32,7 @@ async def server(websocket, path):
             elif data["type"] == "candidate":
                 # ICE 후보 정보 교환
                 print("캔디 들어옴 : ")
-                #id = data["target_id"]
+                id = data["target_id"]
                 if id in connected:
                     await connected[id].send(json.dumps(data))
                         
