@@ -14,6 +14,18 @@ class _SenderScreenState extends State<SenderScreen> {
   SignalingClient? _signalingClient;
   List _candi = [];
   List pendingCandidates = [];
+  bool _isFrontCamera = false;
+  MediaStreamTrack? videoTrack;
+  MediaStreamTrack? audioTrack;
+
+  void initVars(){
+    _candi = [];
+    pendingCandidates = [];
+    _isFrontCamera = false;
+    videoTrack = null;
+    audioTrack = null;
+  }
+
 
   void sendAllCandi(String target_id){
     for(RTCIceCandidate i in _candi)
@@ -24,14 +36,41 @@ class _SenderScreenState extends State<SenderScreen> {
   void initState() {
     super.initState();
     initRenderer();
-    _signalingClient = SignalingClient("ws://localhost:6789", sendAllCandi, _addCandi, _setSDP);
+    _signalingClient = SignalingClient("ws://192.168.35.159:6789", sendAllCandi, _addCandi, _setSDP);
     _signalingClient?.connect();
     _setupConnection();
   }
+
+
   void _setSDP(sdp) async {
     RTCSessionDescription description = RTCSessionDescription(sdp, 'answer');
     await _peerConnection.setRemoteDescription(description);
-    processPendingCandidates();
+    await processPendingCandidates();
+  }
+
+  void _showBlackScreen(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false, // 모달이 투명하게
+        pageBuilder: (BuildContext context, _, __) {
+          return Scaffold(
+            backgroundColor: Colors.black.withOpacity(0.99), // 반투명 검은색 배경
+            body: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                Navigator.of(context).pop(); // 화면 탭 시 모달 닫기
+              },
+              child: Center(
+                child: Text(
+                  'Tap anywhere to return',
+                  style: TextStyle(color: Colors.grey, fontSize: 15),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -47,38 +86,60 @@ class _SenderScreenState extends State<SenderScreen> {
     await _localRenderer.initialize();
   }
 
-  Future<void> _setupConnection() async {
-    _localStream = await _getUserMedia();
+  Future<void> _initStream() async {
+    _localStream = await navigator.mediaDevices.getUserMedia({
+      'audio': true,
+      'video': {
+        'facingMode': _isFrontCamera ? 'user' : 'environment',
+      },
+    });
     _localRenderer.srcObject = _localStream;
+    videoTrack = _localStream!.getVideoTracks().first;
+    audioTrack = _localStream!.getAudioTracks().first;
 
+    // Add each track to the peer connection
+    if (videoTrack != null) {
+      _peerConnection!.addTrack(videoTrack!, _localStream!);
+    }
+    if (audioTrack != null) {
+      _peerConnection!.addTrack(audioTrack!, _localStream!);
+    }
+
+    setState(() {
+      
+    });
+  }
+
+  Future<void> _setupConnection() async {
     _peerConnection = await _createPeerConnection();
-
-    _peerConnection.addStream(_localStream!);
+    await _initStream();
 
     _peerConnection.onIceConnectionState = (RTCIceConnectionState state) {
       print("S) ICE Connection State Changed: $state");
       if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
         print("S) ICE Connection is successfully established.");
-
+      }
+      if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+        print("Connection is disconnected. Attempting to reconnect...");
+        reconnectConnection();
       }
     };
 
     _createOffer();
   }
 
-  void _addCandi(candidate) {
-    pendingCandidates.add(candidate);
+  Future<void> reconnectConnection() async {
+    var route = MaterialPageRoute(builder: (context) => SenderScreen());
+    Navigator.of(context).pop();
+    Navigator.of(context).push(route);
   }
 
-  Future<MediaStream> _getUserMedia() async {
-    final constraints = {
-      'audio': true,
-      'video': {
-        'facingMode': 'user',
-      },
-    };
-    return await navigator.mediaDevices.getUserMedia(constraints);
+
+  void _addCandi(candidate) {
+    pendingCandidates.add(candidate);
+    print(pendingCandidates);
   }
+
 
   Future<RTCPeerConnection> _createPeerConnection() async {
     final Map<String, dynamic> configuration = {
@@ -114,10 +175,14 @@ class _SenderScreenState extends State<SenderScreen> {
     //print('Send offer to signaling server: ${description.sdp}');
   }
 
-  void processPendingCandidates() async {
+  Future<void> processPendingCandidates() async {
+
+    print("S) cand add start");
     for (RTCIceCandidate candidate in pendingCandidates) {
       await _peerConnection.addCandidate(candidate);
     }
+
+    print("S) cand add fin");
     pendingCandidates.clear(); // 처리 후 목록 비우기
   }
 
@@ -127,10 +192,40 @@ class _SenderScreenState extends State<SenderScreen> {
       appBar: AppBar(
         title: Text('Sender Stream'),
       ),
-      body: RTCVideoView(_localRenderer),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _createOffer,
-        child: Icon(Icons.videocam),
+      body: Column(
+        children: [
+          Expanded(
+            child: Container(
+              child: RTCVideoView(_localRenderer),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                FloatingActionButton(
+                  heroTag: "btn1",
+                  onPressed: (){
+                    _isFrontCamera = !_isFrontCamera;
+                    _initStream();
+                  },
+                  child: Icon(Icons.switch_camera),
+                ),
+                FloatingActionButton(
+                  heroTag: "btn2",
+                  onPressed: () => _showBlackScreen(context),
+                  child: Icon(Icons.dark_mode_outlined),
+                ),
+                FloatingActionButton(
+                  heroTag: "btn3",
+                  onPressed: () => reconnectConnection(),
+                  child: Icon(Icons.restart_alt),
+                ),
+              ],
+            ),
+          )
+        ],
       ),
     );
   }

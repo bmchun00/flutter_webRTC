@@ -27,7 +27,7 @@ class _ReceiverDetailState extends State<ReceiverDetail> {
   void initState() {
     super.initState();
     initRenderers();
-    _signalingClient = SignalingClient("ws://localhost:6789", null, _addCandi, null);
+    _signalingClient = SignalingClient("ws://192.168.35.159:6789", null, _addCandi, null);
     _signalingClient?.connect();
     _createPeerConnection();
   }
@@ -37,7 +37,13 @@ class _ReceiverDetailState extends State<ReceiverDetail> {
   }
 
   Future<void> sendAnswer() async{
-    RTCSessionDescription answer = await _peerConnection.createAnswer();
+    RTCSessionDescription answer = await _peerConnection.createAnswer({
+      'mandatory': {
+        'OfferToReceiveAudio': true,
+        'OfferToReceiveVideo': true
+      },
+      'optional': []
+    });
     await _peerConnection.setLocalDescription(answer);
 
     _signalingClient?.sendAnswerToSignalingServer(answer, _sender_id);
@@ -57,18 +63,31 @@ class _ReceiverDetailState extends State<ReceiverDetail> {
         {'url': 'stun:stun.l.google.com:19302'}
       ]
     };
-
-    _peerConnection = await createPeerConnection(configuration);
-
-
-    _peerConnection.onAddStream = (stream) {
-      _remoteRenderer.srcObject = stream;
+    final Map<String, dynamic> answerSdpConstraints = {
+      'mandatory': {
+        'OfferToReceiveAudio': false,
+        'OfferToReceiveVideo': false,
+      },
+      'optional': [],
     };
 
-    _peerConnection.onIceCandidate = (candidate) {
-      _signalingClient?.sendCandidateToSignalingServer(candidate, _sender_id);
-      // Receive and add candidate
+    _peerConnection = await createPeerConnection(configuration, answerSdpConstraints);
+    _peerConnection.onIceCandidate = (RTCIceCandidate candidate) {
+      print("get candi");
+      if(candidate != null){
+        _signalingClient?.sendCandidateToSignalingServer(candidate, _sender_id);
+      }// Receive and add candidate
     };
+
+    _peerConnection.onTrack = (RTCTrackEvent event) {
+      if (event.track.kind == 'video') {
+        // 비디오 트랙 처리
+        setState(() {
+          _remoteRenderer.srcObject = event.streams[0];
+        });
+      }
+    };
+
     await initOffer();
     // Answer 생성 및 시그널링 서버로 전송 로직 추가 필요
     await sendAnswer();

@@ -26,6 +26,7 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
       },
     );
     initRenderer();
+    webSocketManager.getOfferListFromSignalingServer();
   }
 
   @override
@@ -73,6 +74,7 @@ class _ReceiverScreenState extends State<ReceiverScreen> {
         },
         child: Icon(Icons.call_received),
       ),
+
     );
   }
 }

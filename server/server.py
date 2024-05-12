@@ -24,6 +24,7 @@ async def server(websocket, path):
                 
             elif data["type"] == "answer":
                 # 수신한 answer를 해당 offer를 보낸 클라이언트에게 전달
+                print("앤서 받음")
                 streamer = data["target_id"]
                 if streamer in connected:
                     if connected[streamer] != websocket:
@@ -55,7 +56,7 @@ async def server(websocket, path):
             offers.pop(session_key,None)
 
 # 서버 시작
-start_server = websockets.serve(server, "localhost", 6789)
+start_server = websockets.serve(server, "192.168.35.159", 6789)
 
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()

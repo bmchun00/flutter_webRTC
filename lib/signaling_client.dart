@@ -10,7 +10,7 @@ class WebSocketReceiver {
 
   WebSocketReceiver({this.onDataReceived}) {
     channel = WebSocketChannel.connect(
-      Uri.parse('ws://localhost:6789'),
+      Uri.parse('ws://192.168.35.159:6789'),
     );
 
     channel.stream.listen((data) {
@@ -60,6 +60,9 @@ class SignalingClient {
       Map<String, dynamic> msg = jsonDecode(message);
       if(msg['type'] == 'sessionId') _id = msg['sessionId'];
       else if(msg['type'] == 'answer'){
+        if(_setSDP != null){
+          _setSDP!(msg['sdp']);
+        }
         if(_sendCandi != null){
           _sendCandi!(msg['my_id']);
         }
@@ -71,7 +74,6 @@ class SignalingClient {
             msg['candidate']['sdpMLineIndex']
         );
         await _addCandi(candidate);
-        print("candidate added");
       };
     }
     catch(e){
